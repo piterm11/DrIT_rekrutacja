@@ -44,29 +44,33 @@ namespace Rekrutacja.Workers.Template
             //Włączenie Debug, aby działał należy wygenerować DLL w trybie DEBUG
             DebuggerSession.MarkLineAsBreakPoint();
             //Pobieranie danych z Contextu
-            Pracownik pracownik = null;
-            if (this.Cx.Contains(typeof(Pracownik)))
+            //W Context sprawdzane było czy istnieje Pracownik, a nie Pracownik[] w wyniku czego nie odnajdywało pracownika i rzucało NullReferenceException
+            if (this.Cx.Contains(typeof(Pracownik[])))
             {
-                pracownik = (Pracownik)this.Cx[typeof(Pracownik)];
+                Pracownik[] pracownicy = (Pracownik[])this.Cx[typeof(Pracownik[])];
+                foreach (Pracownik pracownik in pracownicy)
+                {
+                    //Modyfikacja danych
+                    //Aby modyfikować dane musimy mieć otwartą sesję, któa nie jest read only
+                    using (Session nowaSesja = this.Cx.Login.CreateSession(false, false, "ModyfikacjaPracownika"))
+                    {
+                        //Otwieramy Transaction aby można było edytować obiekt z sesji
+                        using (ITransaction trans = nowaSesja.Logout(true))
+                        {
+                            //Pobieramy obiekt z Nowo utworzonej sesji
+                            var pracownikZSesja = nowaSesja.Get(pracownik);
+                            //Features - są to pola rozszerzające obiekty w bazie danych, dzięki czemu nie jestesmy ogarniczeni to kolumn jakie zostały utworzone przez producenta
+                            pracownikZSesja.Features["DataObliczen"] = this.Parametry.DataObliczen;
+                            //Zatwierdzamy zmiany wykonane w sesji
+                            trans.CommitUI();
+                        }
+                        //Zapisujemy zmiany
+                        nowaSesja.Save();
+                    }
+                }
             }
 
-            //Modyfikacja danych
-            //Aby modyfikować dane musimy mieć otwartą sesję, któa nie jest read only
-            using (Session nowaSesja = this.Cx.Login.CreateSession(false, false, "ModyfikacjaPracownika"))
-            {
-                //Otwieramy Transaction aby można było edytować obiekt z sesji
-                using (ITransaction trans = nowaSesja.Logout(true))
-                {
-                    //Pobieramy obiekt z Nowo utworzonej sesji
-                    var pracownikZSesja = nowaSesja.Get(pracownik);
-                    //Features - są to pola rozszerzające obiekty w bazie danych, dzięki czemu nie jestesmy ogarniczeni to kolumn jakie zostały utworzone przez producenta
-                    pracownikZSesja.Features["DataObliczen"] = this.Parametry.DataObliczen;
-                    //Zatwierdzamy zmiany wykonane w sesji
-                    trans.CommitUI();
-                }
-                //Zapisujemy zmiany
-                nowaSesja.Save();
-            }
+
         }
     }
 }
